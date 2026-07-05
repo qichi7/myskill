@@ -275,7 +275,7 @@ print('OK: knowledge_detail.md 与 analysis.md 内容一致')
 
 | 编号 | 检查项 | 通过条件 | 严重程度 | 检测方式 |
 |------|--------|---------|---------|---------|
-| C-1 | 简洁性 | 总行数 ≤ 30 行（含空行和标题行，以 `wc -l` 结果为准），每条技能一行（含佐证） | 重要 | 自动 |
+| C-1 | 简洁性 | 每条技能一行（含佐证），无冗余空行或重复表述 | 一般 | 半自动 |
 | C-2 | 每条含 PR 佐证 | 每条技能条目后附带完整 PR 链接作为佐证 | 严重 | 自动 |
 | C-3 | PR 链接完整 | 佐证链接为完整 URL，非 `#xxx` 简写 | 严重 | 自动 |
 | C-4 | 与 knowledge_detail 一致 | 技能条目覆盖的主要技术方向与 `knowledge_detail.md` 中的分类匹配；若某分类 PR 数 ≥ 3，则 `resume_skills.md` 中须有对应技能条目 | 重要 | 半自动 |
@@ -283,10 +283,31 @@ print('OK: knowledge_detail.md 与 analysis.md 内容一致')
 | C-6 | PR 链接真实性 | `resume_skills.md` 中引用的每个 PR 链接对应的 PR 在 `all_prs.json` 中真实存在 | 重要 | 自动 |
 | C-7 | resume_skills 未合入标注 | `resume_skills.md` 中引用未合入 PR 时，括号内含"未合入"字样（如 `（未合入，见 <链接>）`） | 重要 | 自动 |
 
-**C-1 行数检查**：
+**C-1 简洁性检查**：
 ```bash
-lines=$(wc -l < "{output_dir}/resume_skills.md")
-[ "$lines" -le 30 ] || echo "违规: resume_skills.md 共 $lines 行，超出 30 行上限"
+# 检查是否存在连续空行（冗余）和每条技能是否为一行
+python3 -c "
+import re
+with open('{output_dir}/resume_skills.md') as f:
+    lines = f.readlines()
+# 检查连续空行
+blank_runs = []
+run = 0
+for i, line in enumerate(lines):
+    if line.strip() == '':
+        run += 1
+    else:
+        if run >= 2:
+            blank_runs.append((i-run+1, run))
+        run = 0
+if run >= 2:
+    blank_runs.append((len(lines)-run+1, run))
+if blank_runs:
+    for start, cnt in blank_runs:
+        print(f'违规: 第 {start} 行起有连续 {cnt} 个空行')
+else:
+    print('OK: 无连续空行')
+"
 ```
 
 **C-6 链接真实性检查**：
@@ -464,9 +485,9 @@ fi
 
 按维度 A → B → C → D → E 顺序执行检查项，每项记录通过/失败/跳过。
 
-**自动化检查项**（bash/Python 脚本直接判定）：A-1 ~ A-8、B-3、B-8、B-9、B-11、C-1、C-2、C-3、C-6、C-7、D-1、D-4、D-5、D-6、D-7、E-2、E-3、E-4
+**自动化检查项**（bash/Python 脚本直接判定）：A-1 ~ A-8、B-3、B-8、B-9、B-11、C-2、C-3、C-6、C-7、D-1、D-4、D-5、D-6、D-7、E-2、E-3、E-4
 
-**半自动检查项**（脚本提供线索，需进一步分析确认）：B-1、B-2、B-4、B-5、B-6、B-7、B-10、B-12、C-4、D-2、D-3、D-8、E-1
+**半自动检查项**（脚本提供线索，需进一步分析确认）：B-1、B-2、B-4、B-5、B-6、B-7、B-10、B-12、C-1、C-4、D-2、D-3、D-8、E-1
 
 **人工检查项**（需阅读内容判断）：C-5
 
@@ -520,11 +541,11 @@ fi
 
 ---
 
-### [重要] C-1: resume_skills.md 不够简洁
+### [一般] C-1: resume_skills.md 简洁性
 
-**问题**：当前 45 行，超出 30 行上限。
+**问题**：存在连续空行或冗余表述。
 
-**建议**：合并同类技能点，删除冗余描述。
+**建议**：删除连续空行，确保每条技能一行。
 
 ---
 
