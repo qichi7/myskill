@@ -224,7 +224,7 @@ def get_gitcode_diff(repo, number, token, pr_head_sha=None, pr_base_sha=None):
     result_files = []
     need_backup = []
     for f in files:
-        patch_str = f.get("patch", "")
+        patch_str = extract_patch(f.get("patch", ""))
         if not patch_str:
             need_backup.append(f.get("filename", ""))
         patch, truncated = truncate_patch(patch_str)

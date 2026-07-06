@@ -384,6 +384,7 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
    # GitCode（注意：GitCode 的 PR URL 使用 merge_requests 路径，非 pulls）
    PR: https://gitcode.com/{owner}/{repo}/merge_requests/{num}
    ```
+   - **⚠️ 禁止 `#xxx` 简写**：正文中引用 PR **必须**使用完整 URL，**禁止** `#xxx` 简写形式（如 `与 #3073 同源`）；仅 markdown 目录内部锚点链接可豁免。阶段4 生成的 `analysis.md` 与阶段5 生成的 `knowledge_detail.md` 均适用此规则。首次出现某 PR 时必须给出完整 URL，后续同节内再次引用时可使用完整 URL 或 `#xxx` 锚点（但不得仅用 `#xxx` 而无首次完整 URL）。
 
 创建 `{output_dir}/02_intermediate/.PHASE_4` 标记完成。
 
@@ -394,6 +395,9 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
    - 汇总 `03_knowledge/*/` 下各分类子目录中的 `analysis.md`
    - 结构：按分类组织，每类含技术能力点、逐 PR 代码级分析（带 PR 链接）、分类总结
    - 末尾附「核心技术能力总结」和「可复用经验」
+   - **⚠️ 生成后必须交叉校验**（以下两项不通过时需修正后重新生成）：
+     - **PR 总数一致性（B-9）**：统计 `knowledge_detail.md` 全文中出现的唯一完整 PR URL 数，应与 `01_download/all_prs.json` 的 PR 数一致（容差 ±1，用于说明性文字中的非正式引用）。不一致时需排查遗漏的 PR 并补充到对应分类章节。
+     - **PR 链接真实性（B-11）**：`knowledge_detail.md` 中引用的所有 PR URL 必须存在于 `all_prs.json` 的 `html_url` 集合中。存在不匹配的 URL 时需修正（常见错误：仓库名拼写错误如 `canndev` 误写为 `cann-ops-adv-dev`、平台路径格式错误）。
 
    **章节并行生成（subagent 加速）**：各分类章节互不依赖，可并行生成：
    - 每个分类启动 1 个 subagent，读取对应的 `03_knowledge/{category}/analysis.md`，生成 `knowledge_detail.md` 的对应章节内容
@@ -703,6 +707,8 @@ Bot: [识别到企业版 URL，走 MCP server 流程（§4.1.2）：
     | **P3** | 阶段2 PR 收集 | 多平台并行（Gitee + GitCode 各一个 subagent） | 1.5-2x | 不可按 repo 拆分（同平台 rate limit 全局共享） |
 
     **subagent 目录约束**：启动 subagent 时必须在 prompt 中明确指定工作目录为用户输出目录（`{output_dir}`），禁止 subagent 在其他目录创建临时文件。
+
+11. **禁止占位符内容**：`knowledge_detail.md`、`resume_skills.md` 及 `03_knowledge/*/analysis.md` 中**禁止**使用 `TODO`、`TBD`、`待补充`、`FIXME` 等未完成标记。技术术语（如"占位 tensor"、"占位宏定义"、"占位提交"）需有明确上下文表明为技术描述而非未完成标记；若上下文不足以区分，应替换为更精确的技术描述（如"辅助 tensor"、"占位符宏"）。
 
 ---
 
