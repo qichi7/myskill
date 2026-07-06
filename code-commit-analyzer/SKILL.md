@@ -131,7 +131,7 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
    - **base_sha 不可靠**：PR 列表 API 返回的 `base.sha` 是默认分支当前 HEAD 而非 PR 合入时的实际 base，**不可直接使用**，阶段3必须通过 PR 详情 API 重新获取
 6. **并发优化**：建议用 Python 脚本（`concurrent.futures.ThreadPoolExecutor(max_workers=5)`）并发请求；本文 `curl` 仅用于说明 API 调用，实际执行时可在 Python 中用 `requests` 库替代，统一运行时上下文
 
-   **多平台并行（subagent 加速）**：当同时分析 Gitee + GitCode 时，可各启动 1 个 subagent 并行收集两个平台的 PR，主 agent 等待合并。但**不可按 repo 拆分 subagent**——同一平台的 API rate limit 是全局的，拆多个 subagent 不会提升吞吐，反而增加协调开销。
+   **多平台并行（subagent 加速）**：当同时分析 Gitee + GitCode 时，可各启动 1 个 subagent 并行收集两个平台的 PR，主 agent 等待合并。但**不可按 repo 拆分 subagent**——同一平台的 API rate limit 是全局的，拆多个 subagent 不会提升吞吐，反而增加协调开销。**两个平台的 subagent 必须在同一条消息中并行启动**，不可逐个串行下发。
 7. **保存全部 PR 到子目录1**：
    ```bash
    # PR 列表（含链接、合入状态）
@@ -361,6 +361,30 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
 
    **优先方案 — subagent 并发**：启动子 agent 并发处理（`subagent_type: explore`），每个 agent 负责若干分类目录。分配策略：按各分类的 PR 数量做负载均衡分配（PR 数多的分类独占一个 agent，PR 数少的分类合并给同一 agent），使各 agent 负载尽量均匀。每个 agent 启动时传入其负责的目录名列表，agent 仅处理列表中的分类。每个 agent 必须读取 `02_intermediate/pr_diffs.json` 中对应 PR 的 patch 字段进行代码级分析。
 
+   **⚠️ 大分类必须拆分批次（⭐ 关键经验，违反会导致 subagent think 卡死/abort）**：
+   - **单次 subagent 处理上限：25 个 PR**（见 §7.10 subagent 单次任务量上限）
+   - PR 数 > 25 的分类必须拆分为多个 subagent 并行处理，每个处理 ≤ 25 个 PR，输出 `analysis_part{N}.md`
+   - 主 agent 合并各 part 文件为完整 `analysis.md`（添加统一标题、技术能力点、分类总结），删除 part 文件，创建 `.DONE`
+   - **实测案例**：operator_dev 75 个 PR 作为单任务下发 → subagent abort；拆为 3 个 subagent 各 25 个 → 全部成功
+   - **PR 数 ≤ 25 的小分类可合并给同一 subagent**（如 perf_opt 6 + doc 5 = 11 个 PR 合并给 1 个 subagent）
+
+   **拆分批次示例**（假设 operator_dev 75 PR、code_quality 63 PR、test 42 PR、bugfix 24 PR、feature 13 PR、perf_opt 6 PR、doc 5 PR）：
+   ```
+   subagent 1: operator_dev 批次1（PR 1-25）→ analysis_part1.md
+   subagent 2: operator_dev 批次2（PR 26-50）→ analysis_part2.md
+   subagent 3: operator_dev 批次3（PR 51-75）→ analysis_part3.md
+   subagent 4: code_quality 批次1（PR 1-25）→ analysis_part1.md
+   subagent 5: code_quality 批次2（PR 26-50）→ analysis_part2.md
+   subagent 6: code_quality 批次3（PR 51-63）→ analysis_part3.md
+   subagent 7: test 批次1（PR 1-21）→ analysis_part1.md
+   subagent 8: test 批次2（PR 22-42）→ analysis_part2.md
+   subagent 9: bugfix 全部（24 PR）→ analysis.md
+   subagent 10: feature 全部（13 PR）→ analysis.md
+   subagent 11: perf_opt + doc（11 PR）→ 两个 analysis.md
+   主 agent：合并 operator_dev / code_quality / test 的 part 文件，创建 .DONE
+   ```
+   以上 11 个 subagent **必须同时并行启动**（单条消息中包含全部 task 工具调用），不可逐个串行下发。
+
    **备选方案 — 主 agent 串行处理**：若 subagent 调用失败（如返回基础设施错误），**立即降级为主 agent 串行处理**，逐个分类目录生成 `analysis.md`。降级时无需通知用户，直接继续执行。判断 subagent 不可用的条件：task 工具返回错误（如 `no such column: replacement_seq` 等非业务错误）。
 
    **实现要点**：
@@ -395,6 +419,10 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
    - 汇总 `03_knowledge/*/` 下各分类子目录中的 `analysis.md`
    - 结构：按分类组织，每类含技术能力点、逐 PR 代码级分析（带 PR 链接）、分类总结
    - 末尾附「核心技术能力总结」和「可复用经验」
+   - **⚠️ 分步写入（避免单次输出过大导致卡死）**：由于 `knowledge_detail.md` 可达 400+ KB，生成时必须分步：
+     1. 先用 Write 写入文件头部（标题 + 目录 + 前 2-3 个分类章节）
+     2. 再用 Edit 追加后续分类章节（每次追加 2-3 个分类）
+     3. 最后用 Edit 追加「核心技术能力总结」和「可复用经验」
    - **⚠️ 生成后必须交叉校验**（以下两项不通过时需修正后重新生成）：
      - **PR 总数一致性（B-9）**：统计 `knowledge_detail.md` 全文中出现的唯一完整 PR URL 数，应与 `01_download/all_prs.json` 的 PR 数一致（容差 ±1，用于说明性文字中的非正式引用）。不一致时需排查遗漏的 PR 并补充到对应分类章节。
      - **PR 链接真实性（B-11）**：`knowledge_detail.md` 中引用的所有 PR URL 必须存在于 `all_prs.json` 的 `html_url` 集合中。存在不匹配的 URL 时需修正（常见错误：仓库名拼写错误如 `canndev` 误写为 `cann-ops-adv-dev`、平台路径格式错误）。
@@ -404,6 +432,7 @@ description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP serve
    - 主 agent 负责拼接各章节 + 生成目录 + 生成「核心技术能力总结」和「可复用经验」
    - 加速比约 1.5-2x（取决于分类数量）
    - 若 subagent 不可用，主 agent 串行拼接即可（此步骤本身较快，并行收益有限）
+   - **⚠️ 大分类章节拆分**：若某分类的 `analysis.md` 超过 80 KB（如 operator_dev 132 KB），subagent 生成对应章节时也应分批读取和输出，避免单次任务过大
 
 2. **生成简历技能点**：`{output_dir}/resume_skills.md`
    - 基于 `knowledge_detail.md` 浓缩
@@ -623,7 +652,12 @@ MCP 返回:  https://gitee.com/{owner}/{repo}/pulls/{num}     ← 403 不可达
 | 脚本 | 用途 | 用法 |
 |------|------|------|
 | `scripts/mcp_client.py` | Gitee MCP 客户端封装（三步握手 + 工具调用 + 企业版 URL 重映射） | `from mcp_client import GiteeMCPClient` |
+| `scripts/collect_gitee_prs.py` | 阶段2 Gitee PR 收集（社区版+企业版 via MCP，含 list_user_repos 超时绕过策略） | `GITEE_PAT=xxx GITEE_USERNAME=xxx python3 -u scripts/collect_gitee_prs.py {output_dir}` |
+| `scripts/collect_gitcode_prs.py` | 阶段2 GitCode PR 收集（REST API, author 过滤, 兼容多种响应结构） | `GITCODE_TOKEN=xxx GITCODE_USERNAME=xxx python3 -u scripts/collect_gitcode_prs.py {output_dir}` |
 | `scripts/diff_analyze.py` | 阶段3 代码级 Diff 分析（防卡死 + 多平台 + 增量保存 + 断点续传） | `GITEE_PAT=xxx GITCODE_TOKEN=xxx python3 -u scripts/diff_analyze.py {output_dir}` |
+| `scripts/classify_prs.py` | 阶段4 PR 分类 + 生成索引 + 创建分类目录（关键词优先级匹配） | `python3 -u scripts/classify_prs.py {output_dir}` |
+| `scripts/create_summaries.py` | 阶段4 为各分类创建紧凑摘要（patch 截断到100行，供 subagent 读取） | `python3 -u scripts/create_summaries.py {output_dir}` |
+| `scripts/merge_analysis_parts.py` | 阶段4 合并 analysis_part{N}.md 为完整 analysis.md（大分类拆分后合并） | `python3 -u scripts/merge_analysis_parts.py {output_dir} {category} [header_md] [summary_md]` |
 | `scripts/check_progress.sh` | 断点续传进度检查（阶段 + 分类目录 + 文件统计 + 错误统计） | `bash scripts/check_progress.sh {output_dir}` |
 | `scripts/verify_topdir.sh` | 阶段5 顶层整洁校验（检查两文件 + 移走多余文件 + errors.log 统计） | `bash scripts/verify_topdir.sh {output_dir}` |
 
@@ -706,9 +740,33 @@ Bot: [识别到企业版 URL，走 MCP server 流程（§4.1.2）：
     | **P2** | 阶段5 文件生成 | 各分类章节并行生成，主 agent 拼接 | 1.5-2x | 收益有限，此步骤本身较快 |
     | **P3** | 阶段2 PR 收集 | 多平台并行（Gitee + GitCode 各一个 subagent） | 1.5-2x | 不可按 repo 拆分（同平台 rate limit 全局共享） |
 
-    **subagent 目录约束**：启动 subagent 时必须在 prompt 中明确指定工作目录为用户输出目录（`{output_dir}`），禁止 subagent 在其他目录创建临时文件。
+    **subagent 目录约束（⭐ 必读，违反会导致 subagent 向用户索要 `/tmp` 权限）**：启动 subagent 时必须在 prompt 中包含以下硬性约束：
+    - **工作目录**：`{output_dir}`，所有操作仅限此目录
+    - **中间文件位置**：所有临时文件、中间结果必须写入 `{output_dir}/02_intermediate/`，禁止使用 `/tmp`、`/var/tmp` 或任何工作目录外路径
+    - **分类目录约束**：subagent 只能在其负责的 `03_knowledge/{category}/` 目录下创建 `analysis.md`（或 `analysis_part{N}.md` 分批文件）和 `.DONE` 标记，不得创建其他文件
+    - **禁止外部访问**：禁止访问 `/tmp`、`/var/folders`、系统临时目录或工作目录外的任何路径；如需缓存数据，使用 `{output_dir}/02_intermediate/` 下的文件
+    - **prompt 模板**：启动 subagent 时必须包含如下约束段落：
+      ```
+      ## 目录约束（必须遵守，违反会导致任务失败）
+      - 工作目录：{output_dir}
+      - 所有中间文件必须写入 {output_dir}/02_intermediate/
+      - 禁止访问 /tmp、/var/tmp 或工作目录外的任何路径
+      - 只能在 {output_dir}/03_knowledge/{category}/ 下创建 analysis.md 和 .DONE
+      ```
+
+    **subagent 单次任务量上限（⭐ 必读，超过上限会导致 think 卡死/abort）**：
+    - **单个 subagent 处理的 PR 数量上限：25 个**。超过 25 个 PR 的分类必须拆分为多个 subagent 并行处理（如 75 个 PR 拆为 3 个 subagent，每个 25 个）
+    - **单个 subagent 输出文件大小上限：80 KB**。超过时应分批写入（先 Write 写入前半部分，再 Edit 追加后半部分），或拆分为 `analysis_part{N}.md` 后由主 agent 合并
+    - **拆分策略**：按 PR 数量均分，每个 subagent 处理 `ceil(总PR数 / ceil(总PR数/25))` 个 PR。例如 75 个 PR → 3 个 subagent 各 25 个；63 个 PR → 3 个 subagent 各 21 个
+    - **拆分后合并**：主 agent 负责将各 subagent 的 `analysis_part{N}.md` 合并为完整的 `analysis.md`，添加统一的技术能力点和分类总结，删除 part 文件，创建 `.DONE` 标记
 
 11. **禁止占位符内容**：`knowledge_detail.md`、`resume_skills.md` 及 `03_knowledge/*/analysis.md` 中**禁止**使用 `TODO`、`TBD`、`待补充`、`FIXME` 等未完成标记。技术术语（如"占位 tensor"、"占位宏定义"、"占位提交"）需有明确上下文表明为技术描述而非未完成标记；若上下文不足以区分，应替换为更精确的技术描述（如"辅助 tensor"、"占位符宏"）。
+
+12. **分步输出原则（⭐ 关键经验，避免 think 卡死/abort）**：主 agent 和 subagent 的所有输出都必须分步进行，避免单次输出过大导致模型 think 阶段卡死或任务 abort：
+    - **subagent 任务拆分**：单个 subagent 处理的 PR 数量上限 25 个（见 §7.10），输出文件上限 80 KB；超过时拆分为多个 subagent 并行
+    - **主 agent 文件写入分步**：生成大文件（如 `knowledge_detail.md` 可达 400+ KB）时，先用 Write 写入前半部分，再用 Edit 追加后半部分，避免单次 Write 内容过大
+    - **subagent prompt 分步**：subagent 处理大量数据时，prompt 中应指导其分批读取（如每次用 Python 脚本读取 15 个 PR 的数据并分析），而非一次性读取全部数据
+    - **主 agent 任务下发并行**：多个独立 subagent 必须在同一条消息中并行启动（单条消息包含多个 task 工具调用），不可逐个串行下发
 
 ---
 
