@@ -1,5 +1,6 @@
 ---
 name: code-commit-reviewer
+display_name: 审核skill
 description: PR 知识提炼产出检视技能。对 code-commit-analyzer 技能的输出目录进行结构化审查，验证目录合规性、两份最终文件的内容质量（knowledge_detail.md / resume_skills.md）、中间产物的完整性和代码级分析深度。触发：用户需要对 code-commit-analyzer 产出的结果做质量把关时。
 ---
 

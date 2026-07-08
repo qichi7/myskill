@@ -1,5 +1,6 @@
 ---
 name: code-commit-analyzer
+display_name: 总结skill
 description: PR 知识提炼技能。从 Gitee（含企业版，通过 MCP server）/GitCode 等平台收集用户全部 PR（含已合入和未合入），代码级深度分析后提炼技术知识点，最终输出两份文件：详细知识清单（knowledge_detail.md）和简历技能点（resume_skills.md）。全程使用指定目录的三个子目录：01_download（下载）、02_intermediate（中间文件）、03_knowledge（详细知识分章），指定目录顶层只保留两个最终文件。支持断点续传。触发：需要分析某人在代码托管平台上的 PR、提炼技术知识用于写简历时。
 ---
 

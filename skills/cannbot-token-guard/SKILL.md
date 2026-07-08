@@ -1,5 +1,6 @@
 ---
 name: cannbot-token-guard
+display_name: 守卫skill
 description: Cannbot 每日 Token 用量守卫（两阶段）。阶段一「启动检测」：验证 Cannbot provider 并记录开始日期，但不开始监控。阶段二「任务开始」：激活监控，在被检测任务执行期间每 10 分钟检查 Cannbot 当日 token 消耗，达到每日预算 95%（1 亿 token 中的 9500 万）或当前时间不在 22:00-24:00 任务窗口时立即停止任务。触发关键词：启动检测、token 守卫、cannbot 额度监控、长时间任务、整日运行、token 预算、停止任务。
 ---
 
