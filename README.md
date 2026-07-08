@@ -1,17 +1,3 @@
-# 目录结构
-
-```
-myskill/
-├── agent/
-│   └── qli-master.md              # QLI Master 知识索引（入口）
-├── docs/
-└── skills/
-    ├── cannbot-token-guard/       # Token 用量守卫
-    ├── code-commit-analyzer/      # PR 知识提炼
-    ├── code-commit-reviewer/      # 提炼产出检视
-    └── daily-distill-runner/      # 每日蒸馏调度
-```
-
 # Agent
 
 | 标题 | 描述 | 入口 |
