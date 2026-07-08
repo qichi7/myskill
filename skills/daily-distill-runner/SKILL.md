@@ -26,9 +26,11 @@ description: 每日蒸馏主调度 Skill（常驻循环）。每晚 22:00 启动
 
 ## 脚本路径
 
+> 脚本路径相对于本 Skill 目录（即 SKILL.md 所在目录）解析。跨 Skill 引用使用 `../{skill名}/scripts/`。
+
 ```bash
-RUNNER_SCRIPTS=/Users/qichi/work/.opencode/skills/daily-distill-runner/scripts
-GUARD_SCRIPT=/Users/qichi/work/.opencode/skills/cannbot-token-guard/scripts/check_guard.sh
+RUNNER_SCRIPTS=scripts
+GUARD_SCRIPT=../cannbot-token-guard/scripts/check_guard.sh
 ```
 
 | 脚本 | 用途 |
@@ -113,10 +115,10 @@ Skill 被激活
 ## B. 初始化断点状态
 
 运行：
-  bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh init
+  bash scripts/runner_state.sh init
 
 扫描已有进度：
-  bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh scan
+  bash scripts/runner_state.sh scan
 
 判断是否需要清除旧标记：
 - 如果 segments 中存在 .SEG_* 标记，但本次是新一轮夜间任务（新日期），运行 `runner_state.sh clear` 清除旧标记，从头开始。
@@ -125,29 +127,29 @@ Skill 被激活
 ## C. 启动 Token 守卫
 
 运行：
-  bash /Users/qichi/work/.opencode/skills/cannbot-token-guard/scripts/check_guard.sh init
+  bash ../cannbot-token-guard/scripts/check_guard.sh init
 
 - 若返回 STOP：立即返回「Token 守卫 init 失败，非 Cannbot 环境」，不执行后续。
 - 若返回 ARMED：继续。
 
 运行：
-  bash /Users/qichi/work/.opencode/skills/cannbot-token-guard/scripts/check_guard.sh activate
+  bash ../cannbot-token-guard/scripts/check_guard.sh activate
 
 - 若返回 STOP：立即返回「Token 守卫 activate 失败」，不执行后续。
 - 若返回 OK：继续。
 
 打标记：
-  bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh mark TOKEN_GUARD
+  bash scripts/runner_state.sh mark TOKEN_GUARD
 
 ## D. 任务段循环
 
 对每个任务段，执行前先 check Token 守卫：
 
-  bash /Users/qichi/work/.opencode/skills/cannbot-token-guard/scripts/check_guard.sh check
+  bash ../cannbot-token-guard/scripts/check_guard.sh check
 
 - 若返回 STOP：立即跳到步骤 F（收尾），记录停止原因。
 - 若返回 OK：执行该段任务，完成后打标记：
-  bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh mark {SEG_NAME}
+  bash scripts/runner_state.sh mark {SEG_NAME}
 
 ### 任务段定义
 
@@ -174,16 +176,16 @@ Skill 被激活
 ## E. 全部段完成
 
 如果所有段都完成且未触发 STOP：
-  bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh log "全部段完成"
+  bash scripts/runner_state.sh log "全部段完成"
   返回摘要：完成了哪些段、Token 用量、是否触达 95%。
 
 ## F. 收尾（STOP 或完成）
 
 无论 STOP 还是正常完成，都执行：
 1. 获取 Token 守卫状态：
-   bash /Users/qichi/work/.opencode/skills/cannbot-token-guard/scripts/check_guard.sh status
+   bash ../cannbot-token-guard/scripts/check_guard.sh status
 2. 记录日志：
-   bash /Users/qichi/work/.opencode/skills/daily-distill-runner/scripts/runner_state.sh log "任务结束: {停止原因}"
+   bash scripts/runner_state.sh log "任务结束: {停止原因}"
 3. 返回执行摘要，包含：
    - 完成的段列表
    - 未完成的段列表
