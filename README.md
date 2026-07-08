@@ -1,8 +1,8 @@
 # Agent
 
-| 标题 | 描述 | 入口 |
+| 标题 | 描述 | 状态 |
 |------|------|------|
-| qli-master | Quantized Lightning Indexer (QLI) 算子完整知识库。聚合核心概念、流水线同步、Buffer 管理、计算算法、Mask/变长序列、CV 比例适配、MXFP8 修复、V2 Metadata、Tiling/性能、同步陷阱、迁移经验 11 个模块。 | [agent/qli-master.md](agent/qli-master.md) |
+| qli-master | Quantized Lightning Indexer (QLI) 算子完整知识库。聚合核心概念、流水线同步、Buffer 管理、计算算法、Mask/变长序列、CV 比例适配、MXFP8 修复、V2 Metadata、Tiling/性能、同步陷阱、迁移经验 11 个模块。 | 可用 |
 
 # Skills
 
