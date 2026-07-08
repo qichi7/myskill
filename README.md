@@ -12,3 +12,4 @@
 | code-commit-reviewer | PR 知识提炼产出检视技能。对 code-commit-analyzer 的输出目录进行结构化审查，验证目录合规性、两份最终文件的内容质量、中间产物完整性和代码级分析深度。 | 可用 |
 | daily-distill-runner | 每日定时任务调度（常驻循环）。每晚 22:00 准时启动一组任务，任务完成后不打断对话，自动 sleep 到下一个 22:00 继续触发，无限循环。等待用纯 bash sleep，不消耗 AI token。 | 待验证 |
 | cannbot-token-guard | Cannbot 每日 Token 用量守卫（两阶段）。阶段一启动检测验证 Cannbot provider 并记录开始日期；阶段二任务开始时激活监控，每 10 分钟检查当日 token 消耗，达 95%（9500 万/1 亿）或当前时间不在 22:00-24:00 任务窗口即停。 | 待验证 |
+| ops-transformer-distill | 从 GitCode cann/ops-transformer 仓库合入记录蒸馏技术知识。收集所有合入记录，获取代码级diff，按8类分类（功能/性能/精度/Bug/重构/测试/文档/基础设施），主agent并行下发Task加速分析，支持三层断点续传。 | 待验证 |
