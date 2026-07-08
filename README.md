@@ -1,4 +1,24 @@
-# myskill 仓库技能清单
+# 目录结构
+
+```
+myskill/
+├── agent/
+│   └── qli-master.md              # QLI Master 知识索引（入口）
+├── docs/
+└── skills/
+    ├── cannbot-token-guard/       # Token 用量守卫
+    ├── code-commit-analyzer/      # PR 知识提炼
+    ├── code-commit-reviewer/      # 提炼产出检视
+    └── daily-distill-runner/      # 每日蒸馏调度
+```
+
+# Agent
+
+| 标题 | 描述 | 入口 |
+|------|------|------|
+| qli-master | Quantized Lightning Indexer (QLI) 算子完整知识库。聚合核心概念、流水线同步、Buffer 管理、计算算法、Mask/变长序列、CV 比例适配、MXFP8 修复、V2 Metadata、Tiling/性能、同步陷阱、迁移经验 11 个模块。 | [agent/qli-master.md](agent/qli-master.md) |
+
+# Skills
 
 | 标题 | 描述 | 状态 |
 |------|------|------|
