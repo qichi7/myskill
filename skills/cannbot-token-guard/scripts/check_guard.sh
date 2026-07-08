@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# cannbot-token-guard: monitor daily Cannbot token usage and stop when threshold or date change is reached.
+# cannbot-token-guard: monitor daily Cannbot token usage and stop when threshold or time window is exceeded.
 #
 # Two-phase workflow:
 #   Phase 1 (启动检测):  check_guard.sh init      Verify Cannbot provider, record start date. Monitoring NOT active yet.
 #   Phase 2 (任务开始):  check_guard.sh activate  Activate monitoring. Only after this does `check` enforce limits.
 #                        check_guard.sh check     Check if task should continue (returns OK / STOP).
 #   Always:              check_guard.sh status    Print current guard status.
+#
+# Stop conditions:
+#   - Cannbot daily token usage >= 95% of budget (9500 万 / 1 亿)
+#   - Current time outside 22:00-24:00 task window
 
 set -euo pipefail
 
@@ -55,30 +59,75 @@ except Exception:
 "
 }
 
-# Fetch today's Cannbot token usage via tokscale JSON.
+# Fetch today's Cannbot token usage via opencode-usage data.
+# Runs 'opencode-usage sync' to ensure fresh data, then reads the
+# underlying JSON storage file directly for reliable machine-readable parsing.
 # Returns: total_tokens  cannbot_found(yes/no)  cost
 fetch_usage() {
-  npx tokscale@latest --today --client opencode --no-spinner --json 2>/dev/null | python3 -c '
+  opencode-usage sync >/dev/null 2>&1 || true
+
+  local data_file="${HOME}/.local/share/opencode-usage/usage-data.json"
+  if [[ ! -f "$data_file" ]]; then
+    echo "0 no 0"
+    return
+  fi
+
+  python3 - "$data_file" <<'PYEOF'
 import json, sys
+from datetime import datetime, date
+
+data_file = sys.argv[1]
 try:
-    data = json.load(sys.stdin)
+    with open(data_file) as f:
+        data = json.load(f)
 except Exception:
     print("0 no 0")
     sys.exit(0)
 
+today = date.today()
 cannbot_total = 0
 cannbot_found = False
 cost = 0.0
-for e in data.get("entries", []):
-    if e.get("provider", "").lower() == "cannbot":
-        cannbot_found = True
-        cannbot_total += (e.get("input", 0) + e.get("output", 0)
-                          + e.get("cacheRead", 0) + e.get("reasoning", 0))
-        cost += e.get("cost", 0.0)
+
+sessions = data.get("sessions", {})
+if isinstance(sessions, dict):
+    session_list = list(sessions.values())
+elif isinstance(sessions, list):
+    session_list = sessions
+else:
+    session_list = []
+
+for s in session_list:
+    if str(s.get("provider", "")).lower() != "cannbot":
+        continue
+
+    created = s.get("createdAt", "")
+    try:
+        session_date = datetime.fromisoformat(created.replace("Z", "+00:00")).astimezone().date()
+    except Exception:
+        continue
+
+    if session_date != today:
+        continue
+
+    cannbot_found = True
+
+    tokens = s.get("tokens", {})
+    cannbot_total += (tokens.get("input", 0) + tokens.get("output", 0)
+                      + tokens.get("cacheRead", 0) + tokens.get("cacheWrite", 0)
+                      + tokens.get("reasoning", 0))
+
+    for sub in s.get("subagents", []):
+        st = sub.get("tokens", {})
+        cannbot_total += (st.get("input", 0) + st.get("output", 0)
+                          + st.get("cacheRead", 0) + st.get("cacheWrite", 0)
+                          + st.get("reasoning", 0))
+
+    cost += s.get("totalCost", s.get("cost", 0.0))
 
 found_str = "yes" if cannbot_found else "no"
 print("%d %s %.4f" % (cannbot_total, found_str, cost))
-'
+PYEOF
 }
 
 # ── init ─────────────────────────────────────────────────
@@ -156,14 +205,13 @@ do_activate() {
     return 1
   fi
 
-  # Check date hasn't changed since init
-  local current_date
-  current_date=$(today_date)
-  if [[ "$current_date" != "$start_date" ]]; then
-    echo "[guard] ERROR: Date changed since init (init: $start_date, now: $current_date)."
-    echo "[guard] Run 'init' again to re-arm."
+  # Check time window: must be within 22:00-24:00
+  local hour
+  hour=$(date +%H)
+  if (( 10#$hour < 22 )); then
+    echo "[guard] STOP: Current time $(date +%H:%M) outside task window (22:00-24:00)."
     echo "STOP"
-    return 1
+    return 0
   fi
 
   # Activate monitoring: set monitoring_active=1 and record current usage as baseline
@@ -207,11 +255,11 @@ do_check() {
   start_date=$(read_state_field "start_date")
   last_check=$(read_state_field "last_check_epoch")
 
-  # ── Check 1: date changed? ──
-  local current_date
-  current_date=$(today_date)
-  if [[ "$current_date" != "$start_date" ]]; then
-    echo "[guard] STOP: Date changed (started $start_date, now $current_date)."
+  # ── Check 1: time window (22:00-24:00) ──
+  local hour
+  hour=$(date +%H)
+  if (( 10#$hour < 22 )); then
+    echo "[guard] STOP: Current time $(date +%H:%M) outside task window (22:00-24:00)."
     echo "STOP"
     return 0
   fi
@@ -272,6 +320,7 @@ do_status() {
   echo "[guard] === Cannbot Token Guard Status ==="
   echo "[guard] Daily budget: ${DAILY_TOKEN_BUDGET} tokens"
   echo "[guard] Stop threshold: ${STOP_THRESHOLD} tokens (95%)"
+  echo "[guard] Task window: 22:00-24:00"
 
   if [[ -f "$STATE_FILE" ]]; then
     local start_date cached_total cached_cost monitoring_active
@@ -279,7 +328,7 @@ do_status() {
     cached_total=$(read_state_field "last_total_tokens")
     cached_cost=$(read_state_field "last_cost_usd")
     monitoring_active=$(read_state_field "monitoring_active")
-    echo "[guard] Task start date: ${start_date}"
+    echo "[guard] Init date: ${start_date}"
     echo "[guard] Last known usage: ${cached_total} tokens (\$${cached_cost})"
     if [[ "$monitoring_active" == "1" ]]; then
       echo "[guard] Monitoring: ACTIVE (enforcing limits)"
@@ -290,8 +339,13 @@ do_status() {
     echo "[guard] No state file (not initialized)."
   fi
 
-  echo "[guard] Current date: $(today_date)"
-  echo "[guard] Current time: $(now_iso)"
+  local hour
+  hour=$(date +%H)
+  if (( 10#$hour >= 22 )); then
+    echo "[guard] Current time: $(now_iso) [IN WINDOW]"
+  else
+    echo "[guard] Current time: $(now_iso) [OUTSIDE WINDOW]"
+  fi
 }
 
 # ── main ─────────────────────────────────────────────────
