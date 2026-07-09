@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 蒸馏skill: 进度检查脚本
 #
-# 扫描输出目录，报告各阶段完成度、各分类完成度、合入记录统计、错误统计。
+# 扫描输出目录，报告各阶段完成度、批次进度、合入记录统计、错误统计。
 #
 # 用法:
 #   check_progress.sh {output_dir}
@@ -15,7 +15,7 @@ echo ""
 
 # ── 阶段完成度 ──
 echo "--- 阶段进度 ---"
-for i in 1 2 3 4 5 6; do
+for i in 1 2 3 4 5; do
   marker="${OUTPUT_DIR}/02_intermediate/.PHASE_${i}"
   if [[ -f "$marker" ]]; then
     echo "  阶段${i}: ✅ 完成"
@@ -26,7 +26,7 @@ done
 
 # 找到第一个未完成的阶段
 RESUME_STAGE=""
-for i in 1 2 3 4 5 6; do
+for i in 1 2 3 4 5; do
   marker="${OUTPUT_DIR}/02_intermediate/.PHASE_${i}"
   if [[ ! -f "$marker" ]]; then
     RESUME_STAGE=$i
@@ -64,21 +64,36 @@ fi
 
 echo ""
 
-# ── 分类完成度 ──
-echo "--- 分类进度 ---"
-class_file="${OUTPUT_DIR}/02_intermediate/merge_classification.json"
-if [[ -f "$class_file" ]]; then
+# ── 批次进度 ──
+echo "--- 批次进度 ---"
+progress_file="${OUTPUT_DIR}/02_intermediate/batch_progress.json"
+if [[ -f "$progress_file" ]]; then
   python3 -c "
 import json, os
-with open('$class_file') as f:
-    d = json.load(f)
-for cat, records in d.items():
-    done = os.path.exists('${OUTPUT_DIR}/03_knowledge/' + cat + '/.DONE')
-    marker = '✅' if done else '❌'
-    print(f'  {marker} {cat}: {len(records)} 条合入记录')
-" 2>/dev/null || echo "  分类文件解析失败"
+with open('$progress_file') as f:
+    p = json.load(f)
+total = p.get('total_records', '?')
+done = p.get('completed_count', 0)
+completed_batches = p.get('completed_batches', [])
+next_batch = p.get('next_batch', None)
+print(f'  已完成: {done}/{total} 条记录')
+print(f'  已完成批次: {completed_batches}')
+if next_batch:
+    print(f'  下一批次: {next_batch}')
+else:
+    print(f'  全部批次已完成')
+
+# 扫描 batch 目录
+batch_dir = '$OUTPUT_DIR/03_knowledge'
+if os.path.isdir(batch_dir):
+    batches = sorted([d for d in os.listdir(batch_dir) if d.startswith('batch_')])
+    for b in batches:
+        done_marker = os.path.join(batch_dir, b, '.DONE')
+        marker = '✅' if os.path.exists(done_marker) else '⏳'
+        print(f'  {marker} {b}')
+" 2>/dev/null || echo "  进度文件解析失败"
 else
-  echo "  分类: 未执行"
+  echo "  批次进度: 未开始"
 fi
 
 echo ""
