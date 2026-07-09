@@ -1,7 +1,7 @@
 ---
 name: daily-distill-runner
 display_name: 每日skill
-description: 每日定时任务调度（常驻循环）。每晚 22:00 准时启动一组任务，任务完成后不打断对话，自动 sleep 到下一个 22:00 继续触发，无限循环。等待用纯 bash sleep，不消耗 AI token。触发关键词：每日循环、22点启动、夜间任务、定时触发、常驻任务。
+description: 每日定时任务调度（常驻循环）。每晚 22:00 准时启动主 skill，任务完成后不打断对话，自动 sleep 到下一个 22:00 继续触发，无限循环。等待用纯 bash sleep，不消耗 AI token。触发关键词：每日循环、22点启动、夜间任务、定时触发、常驻任务。
 ---
 
 # 每日定时任务调度（常驻循环）
@@ -33,14 +33,13 @@ RUNNER_SCRIPTS=scripts
 
 | 脚本 | 用途 |
 |------|------|
-| `wait_until_22.sh [last_run_date]` | 阻塞至 22:00（新日期），输出 `TRIGGER` 或 `TIMEOUT` |
-| `runner_state.sh {init\|set_last_run\|get_last_run\|log}` | 运行状态管理（上次运行日期 + 日志） |
+| `wait_until_22.sh` | 阻塞至 22:00，输出 `TRIGGER` 或 `TIMEOUT` |
+| `runner_state.sh {init\|log}` | 日志记录 |
 
 ## 状态目录
 
 ```
 ~/.cache/daily-distill-runner/
-├── runner_state.json        # { "last_run_date": "2026-07-06" }
 └── logs/
     └── 2026-07-06.log       # 当日执行日志
 ```
@@ -51,31 +50,26 @@ RUNNER_SCRIPTS=scripts
 Skill 被激活（用户提供主运行 skill）
   │
   ├─ 步骤0：立即触发检测
-  │   若当前在 22:00-24:00 之间 → 跳过等待，直接进入步骤3
+  │   若当前在 22:00-24:00 之间 → 跳过等待，直接进入步骤2
   │   否则 → 进入循环
   │
   └─ 进入无限循环 LOOP ─────────────────────────────────┐
       │                                                 │
-      ├─ 步骤1：读取上次运行日期                          │
-      │   bash runner_state.sh get_last_run             │
-      │                                                 │
-      ├─ 步骤2：阻塞等待 22:00                           │
-      │   bash wait_until_22.sh {last_run_date}         │
+      ├─ 步骤1：阻塞等待 22:00                           │
+      │   bash wait_until_22.sh                        │
       │   ⚠️ 必须设 timeout=86400000（24小时）           │
       │   ├─ TRIGGER → 继续                              │
-      │   └─ TIMEOUT → 记录日志，回到步骤2                │
+      │   └─ TIMEOUT → 记录日志，回到步骤1                │
       │                                                 │
-      ├─ 步骤3：记录触发日期                              │
-      │   today=$(date +%Y-%m-%d)                       │
-      │   bash runner_state.sh set_last_run {today}     │
+      ├─ 步骤2：记录日志                                  │
       │   bash runner_state.sh log "任务触发"            │
       │                                                 │
-      ├─ 步骤4：执行用户指定的 skill                      │
+      ├─ 步骤3：执行用户指定的 skill                      │
       │   用 skill 工具加载用户指定的 skill              │
       │   在主 agent 上下文中执行该 skill                │
       │   等待 skill 执行完成                            │
       │                                                 │
-      ├─ 步骤5：记录执行摘要                              │
+      ├─ 步骤4：记录执行摘要                              │
       │   bash runner_state.sh log "任务完成: {摘要}"   │
       │                                                 │
       └─ 回到步骤1（不打断对话，无限循环）─────────────────┘
@@ -90,7 +84,7 @@ Skill 被激活（用户提供主运行 skill）
 1. **询问主运行 skill**：本 Skill 被激活后，第一件事是询问用户"每晚 22:00 要运行哪个主 skill？"。按 [skill 类型与协作工作流](../../docs/skill-types-and-workflows.md) 中定义的辅助 skill 询问规则执行。
 
 2. **立即触发检测**：询问完主运行 skill、一切就绪准备开始等待前，立即检测当前时间：
-   - 若当前在 22:00-24:00 之间（`$(date +%H)` ≥ 22），**跳过等待，直接执行步骤3**（记录触发日期 → 执行主 skill）
+   - 若当前在 22:00-24:00 之间（`$(date +%H)` ≥ 22），**跳过等待，直接执行步骤2**（记录日志 → 执行主 skill）
    - 否则进入正常等待循环
 
 3. **进入无限循环**：本 Skill 不主动终止。完成一轮后不打断对话，回到等待状态，等待次日 22:00。
@@ -99,7 +93,7 @@ Skill 被激活（用户提供主运行 skill）
 
 4. **等待时设长超时**：调用 `wait_until_22.sh` 时，bash 工具的 `timeout` 参数必须设为 `86400000`（24小时）。脚本内部每 10 分钟轮询一次，不会真正占用 24h，但需要足够大的超时窗口。
 
-5. **不跳过等待**：即使上次任务刚结束（如 23:30），也必须回到步骤1重新等待。`wait_until_22.sh` 接收 `last_run_date` 参数，会自动跳过同日重触发，等到次日 22:00。
+5. **不跳过等待**：即使上次任务刚结束（如 23:30），也必须回到步骤1重新等待。`wait_until_22.sh` 若被调用时已在 22:00-24:00 窗口内，会自动等到次日 22:00 才触发，不会同夜重复触发。
 
 6. **不消耗等待期 token**：`wait_until_22.sh` 是纯 bash 阻塞，等待期间 AI 不做任何调用。这是设计的核心——用 bash sleep 代替 AI 轮询，避免浪费额度。
 

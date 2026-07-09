@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# daily-distill-runner: block until 22:00 on a date after LAST_RUN_DATE.
+# daily-distill-runner: block until 22:00.
 #
-# Used by the main orchestrator loop to wait for the nightly task window
-# WITHOUT consuming AI tokens (pure bash sleep). The AI agent calls this
-# with a long bash timeout (e.g. 86400000 ms = 24h); the script polls
-# every 10 minutes and exits as soon as the trigger window is reached.
+# Pure bash sleep, no AI token consumed. Polls every 10 minutes.
+# If called from within the 22:00-24:00 window (e.g. task just finished at 23:30),
+# waits until midnight passes, then waits for the next 22:00.
 #
 # Usage:
-#   wait_until_22.sh [last_run_date]
-#     last_run_date  YYYY-MM-DD of the last successful trigger.
-#                    Prevents same-date re-triggering. Omit to wait for
-#                    the next 22:00 regardless of date.
+#   wait_until_22.sh
 #
 # Output:
-#   TRIGGER   — window reached, caller should start the task
+#   TRIGGER   — 22:00 reached, caller should start the task
 #   TIMEOUT   — safety max wait exceeded (25h), caller should abort
 #
 # Exit codes:
@@ -22,12 +18,19 @@
 
 set -euo pipefail
 
-LAST_RUN_DATE="${1:-}"
-
 MAX_WAIT_SEC=90000    # 25 hours safety cap
 POLL_INTERVAL=600     # 10 minutes
 
 start_epoch=$(date +%s)
+
+# Track whether we started inside the 22:00-24:00 window.
+# If so, we must wait until the window ends (midnight) before
+# waiting for the next 22:00, to avoid re-triggering same night.
+started_in_window=0
+start_hour=$(date +%H | sed 's/^0//')
+if (( start_hour >= 22 )); then
+  started_in_window=1
+fi
 
 while true; do
   now_epoch=$(date +%s)
@@ -38,17 +41,18 @@ while true; do
     exit 1
   fi
 
-  today=$(date +%Y-%m-%d)
-  hour=$(date +%H | sed 's/^0//')   # strip leading zero for arithmetic
+  hour=$(date +%H | sed 's/^0//')
 
   if (( hour >= 22 )); then
-    if [[ -z "$LAST_RUN_DATE" || "$today" != "$LAST_RUN_DATE" ]]; then
-      echo "[wait] Trigger window reached: ${today} $(date +%H:%M)."
-      echo "[wait] last_run_date=${LAST_RUN_DATE:-<none>}, today=${today}"
+    if (( started_in_window == 0 )); then
+      echo "[wait] Trigger window reached: $(date '+%Y-%m-%d %H:%M')."
       echo "TRIGGER"
       exit 0
     fi
-    # Same date as last run — keep waiting for tomorrow's 22:00
+    # Still in the same window we started in — keep waiting for midnight.
+  else
+    # Out of window (00:00–21:59). Reset flag so next 22:00 triggers.
+    started_in_window=0
   fi
 
   sleep "$POLL_INTERVAL"
