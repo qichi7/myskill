@@ -137,6 +137,23 @@ do_init() {
   echo "[guard] Daily budget: ${DAILY_TOKEN_BUDGET} tokens"
   echo "[guard] Stop threshold (95%): ${STOP_THRESHOLD} tokens"
 
+  # Ensure opencode-usage is available
+  if ! command -v opencode-usage >/dev/null 2>&1; then
+    echo "[guard] opencode-usage not found. Installing via npm..."
+    npm install -g @azatakmyradov/opencode-usage 2>&1 || {
+      echo "[guard] ERROR: Failed to install opencode-usage."
+      echo "[guard] Please install manually: npm install -g @azatakmyradov/opencode-usage"
+      echo "STOP"
+      return 1
+    }
+    if ! command -v opencode-usage >/dev/null 2>&1; then
+      echo "[guard] ERROR: opencode-usage still not available after install."
+      echo "STOP"
+      return 1
+    fi
+    echo "[guard] opencode-usage installed successfully."
+  fi
+
   # Fetch usage to verify cannbot is present
   local usage_result
   usage_result=$(fetch_usage)
@@ -146,7 +163,7 @@ do_init() {
   cost=$(echo "$usage_result" | awk '{print $3}')
 
   if [[ "$found" != "yes" ]]; then
-    echo "[guard] ERROR: No Cannbot provider usage detected in tokscale output."
+    echo "[guard] ERROR: No Cannbot provider usage detected in opencode-usage output."
     echo "[guard] The current key may NOT be from Cannbot. Aborting task setup."
     echo "STOP"
     return 1
