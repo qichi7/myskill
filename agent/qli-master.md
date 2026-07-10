@@ -20,6 +20,7 @@
 | 09 | [Tiling 与性能优化](../docs/qli-master/09-tiling-perf.md) | `09-tiling-perf.md` | Tiling Key生成、性能优化要点(L1/L0缓存复用/Event池化/Bank冲突避免/L2 Cache控制)、**CVRATIO编译器优化分析(除法消除/常量折叠/条件编译)**、代码位置速查表 |
 | 10 | [同步陷阱与修复经验](../docs/qli-master/10-sync-pitfalls.md) | `10-sync-pitfalls.md` | ProcessVec1提前返回缺V_MTE3同步(核卡死)、MXFP8 Mmad n维度16对齐(AIC error)、Fixpipe UB写缓冲未排空(精度错误)、**UB复用重叠(return_value开关导致索引越界)**、通用调试方法论 |
 | 11 | [同步迁移经验](../docs/qli-master/11-sync-migration.md) | `11-sync-migration.md` | 上游仓库同步策略、提交分析与跳过决策、MXFP8代码保护、编译验证流程、审查报告处理、命名空间归属检查、经验教训总结 |
+| 12 | [特性泛化与 aclGraph](../docs/qli-master/12-feature-generalization.md) | `12-feature-generalization.md` | **G泛化(64→1~64)**、mBaseSizeAlign16两类用途分离、Fixpipe 16对齐、qkVLstride联动、UB行间距动态化(dstStride/srcStride)、Vector1奇数G尾部处理、cmpRatio放宽(枚举→2的幂全集)、**aclGraph支持(SetFlag补充/golden修复/测试文件)**、上游对比经验(G泛化/UB布局) |
 
 ---
 
@@ -55,6 +56,9 @@
 ### 从上游仓库同步修改 / 代码迁移
 → [11 同步迁移经验](../docs/qli-master/11-sync-migration.md)
 
+### 泛化 G / cmpRatio / 支持 aclGraph
+→ [12 特性泛化与 aclGraph](../docs/qli-master/12-feature-generalization.md)
+
 ---
 
 ## 关键公式速查
@@ -68,14 +72,16 @@ $$out = \text{Top-}k\left\{[1]_{1\times g}@\left[(W@[1]_{1\times S_{k}})\odot\te
 | S2 | Key Seq Length | - |
 | N1 | Query Head Num | [1, 64] |
 | N2 | Key Head Num | **固定=1** |
-| G | Group Size | N1/N2 |
+| G | Group Size | N1/N2, **[1, 64]**（泛化后） |
 | D | Head Dimension | **固定=128** |
 | K | TopK Count | [1, 2048] |
 
 | 架构 | S1_BASE | S2_BASE | M_BASE | 核配比 |
 |------|---------|---------|---------|--------|
 | arch22 (910B) | 4 | 2048 | 4×G | C:V=1:2 |
-| arch35 (950) | 4 | 128 | 4×G | 独立核 |
+| arch35 (950) | 4(topk≤2048) / 3(topk>2048) | 128 | s1Base×G | 独立核 |
+
+> arch35 泛化后：s1BaseSize 固定为 4 或 3，mBaseSize = s1BaseSize × gSize（派生量），G ∈ [1, 64]
 
 ---
 
@@ -110,5 +116,6 @@ docs/
     ├── 08-v2-metadata.md              ← V2 Metadata 算子
     ├── 09-tiling-perf.md              ← Tiling 与性能优化
     ├── 10-sync-pitfalls.md            ← 同步陷阱与修复经验
-    └── 11-sync-migration.md           ← 同步迁移经验
+    ├── 11-sync-migration.md           ← 同步迁移经验
+    └── 12-feature-generalization.md   ← 特性泛化与 aclGraph
 ```

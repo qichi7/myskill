@@ -162,9 +162,11 @@ CrossCoreSetFlag<...>(CROSS_CV_EVENT + runInfo.loop % 2 + AIV0_AIV1_OFFSET);  //
 
 | 维度 | V1 (skill 描述) | V2 (当前代码) |
 |------|----------------|--------------|
-| 基本块常量 | `S1_BASE_SIZE`/`S2_BASE_SIZE`/`M_BASE_SIZE` | `M_BASE_SIZE=256`/`S2_BASE_SIZE=128`（无 `S1_BASE_SIZE`） |
-| s1BaseSize 计算 | `S1_BASE_SIZE` 直接赋值 | `mBaseSize / gSize` 动态计算（Line 217） |
-| 减半逻辑 | `mBaseSize /= 2; s1BaseSize /= 2` | **不存在**（V2 直接 `mBaseSize = M_BASE_SIZE`） |
+| 基本块常量 | `S1_BASE_SIZE`/`S2_BASE_SIZE`/`M_BASE_SIZE` | `S1_BASE_SIZE_DEFAULT=4`/`S1_BASE_SIZE_LARGE_TOPK=3`/`S2_BASE_SIZE=128` |
+| s1BaseSize 计算 | `S1_BASE_SIZE` 直接赋值 | `S1_BASE_SIZE_DEFAULT` 或 `S1_BASE_SIZE_LARGE_TOPK`（固定常量） |
+| mBaseSize 计算 | `M_BASE_SIZE` 固定常量 | `s1BaseSize * gSize`（派生量，G泛化后） |
+| mBaseSizeAlign16 | 无 | `CeilAlign(mBaseSize, 16)`（NZ对齐，用于Buffer分配） |
+| 减半逻辑 | `mBaseSize /= 2; s1BaseSize /= 2` | **不存在**（V2 直接用派生值） |
 
 ## 验证要点
 

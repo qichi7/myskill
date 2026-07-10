@@ -13,7 +13,7 @@ $$out = \text{Top-}k\left\{[1]_{1\times g}@\left[(W@[1]_{1\times S_{k}})\odot\te
 | S2 | Key Seq Length | - |
 | N1 | Query Head Num | [1, 64] |
 | N2 | Key Head Num | **固定=1** |
-| G | Group Size | N1/N2 |
+| G | Group Size | N1/N2, **[1, 64]**（泛化后） |
 | D | Head Dimension | **固定=128** |
 | K | TopK Count | [1, 2048] |
 
@@ -30,7 +30,7 @@ $$out = \text{Top-}k\left\{[1]_{1\times g}@\left[(W@[1]_{1\times S_{k}})\odot\te
 | 架构 | S1_BASE | S2_BASE | M_BASE | 特点 |
 |------|---------|---------|---------|------|
 | arch22 | 4 | **2048** | 4*G | 大块，充分利用Cube |
-| arch35 | 4 | **128** | 128 | 小块，向量流水线 |
+| arch35 | 4(topk≤2048) / 3(topk>2048) | **128** | s1Base*G | 小块，向量流水线；G泛化后mBaseSize为派生量 |
 
 ### 负载均衡算法
 
