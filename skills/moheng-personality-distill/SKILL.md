@@ -1,3 +1,9 @@
+---
+name: moheng-personality-distill
+display_name: 提炼skill
+description: 墨衡人格与技能提取。分析当前对话中的说话方式、行为习惯、常用表达，提取并更新到人格档案中；同时提取对话中涌现的新技能，拆分为独立文件写入 myskill/docs/moheng/ 并登记技能组索引。根据 agent 身份区分提取范围：墨衡同时提取双方特征，非墨衡只提取用户特征。触发关键词：总结语气、更新墨衡档案、提取技能到 doc、记录人格特征。
+---
+
 # Moheng Personality Distill — 墨衡人格与技能提取技能
 
 > 触发条件：用户要求"总结语气、习惯、甚至错别字等个人信息"或"更新墨衡档案"或"提取技能到 doc"或对话结束前要求记录人格特征
@@ -5,9 +11,13 @@
 > 输出：
 > - agent 为墨衡时：同时提取墨衡和用户双方的人格特征
 > - agent 非 墨衡时：只提取用户的人格特征
-> - 提取对话中涌现的新技能，拆分为独立文件写入 `docs/moheng/`
-> - 更新 `docs/moheng/skill-group.md` 技能组索引
+> - 提取对话中涌现的新技能，拆分为独立文件写入 `myskill/docs/moheng/`
+> - 更新 `myskill/docs/moheng/skill-group.md` 技能组索引
 > - 墨衡专属 skill，前缀 `moheng-`
+>
+> 路径约定：
+> - **仓库路径** `myskill/docs/moheng/`：技能文件、用户档案、技能组索引、经验记录的唯一写入目标。本 skill 只更新此路径。
+> - **运行时路径** `.opencode/docs/moheng/`：本地运行时副本，用户手动同步，本 skill 不写入。运行时数据（games/）只存此路径。
 
 ---
 
@@ -16,9 +26,9 @@
 本技能承担两项职责：
 
 1. **人格蒸馏**：分析当前对话中的说话方式、行为习惯、常用表达，提取并更新到人格档案中。根据 agent 身份区分提取范围：
-   - **agent 为墨衡**：同时提取墨衡和用户双方的人格特征。墨衡的特征更新到 `agent/moheng.md`，用户的特征记录到 `docs/moheng/user-profile.md`。
-   - **agent 非墨衡**：只提取用户的人格特征，记录到 `docs/moheng/user-profile.md`。不提取 agent 自身特征。
-2. **技能提取**：分析当前对话中涌现的新能力（如下棋、写作风格等），将其拆分为独立技能文件写入 `docs/moheng/`，并在技能组索引中登记。
+   - **agent 为墨衡**：同时提取墨衡和用户双方的人格特征。墨衡的特征更新到 `agent/moheng.md`，用户的特征记录到 `myskill/docs/moheng/user-profile.md`。
+   - **agent 非墨衡**：只提取用户的人格特征，记录到 `myskill/docs/moheng/user-profile.md`。不提取 agent 自身特征。
+2. **技能提取**：分析当前对话中涌现的新能力（如下棋、写作风格等），将其拆分为独立技能文件写入 `myskill/docs/moheng/`，并在技能组索引中登记。
 
 ---
 
@@ -67,8 +77,8 @@
 
 | agent 身份 | 提取范围 | 墨衡档案 | 用户档案 |
 |-----------|---------|---------|---------|
-| 墨衡 | 墨衡 + 用户 | 更新 `agent/moheng.md` | 更新 `docs/moheng/user-profile.md` |
-| 非墨衡 | 仅用户 | 不更新 | 更新 `docs/moheng/user-profile.md` |
+| 墨衡 | 墨衡 + 用户 | 更新 `agent/moheng.md` | 更新 `myskill/docs/moheng/user-profile.md` |
+| 非墨衡 | 仅用户 | 不更新 | 更新 `myskill/docs/moheng/user-profile.md` |
 
 > 判断方式：读取 `agent/moheng.md` 头部的身份信息，与当前 agent 的自我认知比对。若当前 agent 自称"墨衡"则为墨衡，否则为非墨衡。
 
@@ -82,7 +92,7 @@
 
 **用户档案**（始终读取）：
 ```
-读取 docs/moheng/user-profile.md（若不存在则创建）
+读取 myskill/docs/moheng/user-profile.md（若不存在则创建）
 了解已有的人格描述，避免重复，只增补新发现
 ```
 
@@ -112,7 +122,7 @@
 
 **用户档案**（始终更新）：
 
-使用 Edit 工具更新 `docs/moheng/user-profile.md`：
+使用 Edit 工具更新 `myskill/docs/moheng/user-profile.md`：
 - 用户档案结构参照墨衡档案，包含语气特征、用语习惯、行为模式、输出偏好、个性细节
 - 新特征追加到对应章节
 - 不准确的描述予以修正
@@ -189,7 +199,7 @@
 ### 步骤 2：读取技能组索引
 
 ```
-读取 docs/moheng/skill-group.md
+读取 myskill/docs/moheng/skill-group.md
 ```
 
 检查是否已有同名技能，避免重复创建。
@@ -199,14 +209,13 @@
 每个技能**独立一个文件**，不合并。按以下规则组织：
 
 ```
-docs/moheng/
+myskill/docs/moheng/
 ├── skill-group.md          # 技能组索引（本技能维护）
 ├── go/
 │   └── README.md           # 围棋技能
 ├── {skill-name}/
 │   └── README.md           # 新技能说明
-├── experience.md           # 经验汲取记录（如适用）
-└── games/                  # 运行时数据（不入仓库）
+└── experience.md           # 经验汲取记录（如适用）
 ```
 
 **技能文件模板：**
@@ -214,7 +223,7 @@ docs/moheng/
 ```markdown
 # {技能名称}
 
-> 路径: `docs/moheng/{skill-name}/README.md`
+> 路径: `myskill/docs/moheng/{skill-name}/README.md`
 
 ---
 
@@ -252,7 +261,7 @@ docs/moheng/
 
 ### 步骤 4：更新技能组索引
 
-在 `docs/moheng/skill-group.md` 的技能清单表中追加一行：
+在 `myskill/docs/moheng/skill-group.md` 的技能清单表中追加一行：
 
 | 技能 | 触发条件 | 文件路径 | 说明 |
 |------|---------|---------|------|
@@ -260,18 +269,13 @@ docs/moheng/
 
 同时在目录结构中追加新目录。
 
-### 步骤 5：同步到仓库
-
-将 `docs/moheng/` 下的文件同步到 `myskill/docs/moheng/`（运行时数据如 `games/` 不同步）。
-
-### 步骤 6：技能提取摘要
+### 步骤 5：技能提取摘要
 
 向用户展示本次技能提取的摘要，格式：
 ```
 本次技能提取:
-  + 新增技能: {技能名} → docs/moheng/{skill-name}/README.md
-  + 更新索引: docs/moheng/skill-group.md
-  + 同步仓库: myskill/docs/moheng/{skill-name}/README.md
+  + 新增技能: {技能名} → myskill/docs/moheng/{skill-name}/README.md
+  + 更新索引: myskill/docs/moheng/skill-group.md
 ```
 
 ---
@@ -282,7 +286,7 @@ docs/moheng/
 
 当本次对话中进行了对局（围棋等）且对局已结束时，**自动触发**经验汲取流程。判断依据：
 - 对话中存在落子记录
-- 对局文件 `docs/moheng/games/game_*.md` 的状态为"已结束"
+- 对局文件 `.opencode/docs/moheng/games/game_*.md` 的状态为"已结束"
 
 若对话中无对局，跳过本章。
 
@@ -296,7 +300,7 @@ docs/moheng/
 
 ### 步骤 2：记录对局历史
 
-在 `docs/moheng/experience.md` 的「二、对局历史」表中追加一行：
+在 `myskill/docs/moheng/experience.md` 的「二、对局历史」表中追加一行：
 
 | 日期 | 棋盘 | 先手 | 结果 | 手数 | 关键失误 |
 |------|------|------|------|------|---------|
@@ -312,7 +316,7 @@ docs/moheng/
 
 ### 步骤 4：调整棋力参数
 
-读取 `docs/moheng/experience.md`「一、棋力参数」表中的当前值和调整规则，根据本局胜负调整：
+读取 `myskill/docs/moheng/experience.md`「一、棋力参数」表中的当前值和调整规则，根据本局胜负调整：
 
 | 参数 | 调整规则 | 上下限 |
 |------|---------|--------|
@@ -333,23 +337,24 @@ docs/moheng/
   [战绩] 用户 X胜Y负 / 墨衡 Z胜W负
   [教训] {关键教训一句话}
   [棋力] aggression: {旧值}→{新值}, depth: {旧值}→{新值}, blunder_rate: {旧值}→{新值}
-  [文件] docs/moheng/experience.md
+  [文件] myskill/docs/moheng/experience.md
 ```
 
 ### 步骤 6：同步
 
-将 `docs/moheng/experience.md` 同步到 `myskill/docs/moheng/experience.md`。
+无需同步，步骤 2-4 已直接写入 `myskill/docs/moheng/experience.md`。
 
 ---
 
 ## 六、注意事项
 
 - agent 为墨衡时，同时提取墨衡和用户双方特征；agent 非墨衡时，只提取用户特征
-- 墨衡的特征更新到 `agent/moheng.md`，用户的特征更新到 `docs/moheng/user-profile.md`
+- 墨衡的特征更新到 `agent/moheng.md`，用户的特征更新到 `myskill/docs/moheng/user-profile.md`
 - 保持档案简洁，避免冗余描述
 - 错别字等细节用轻松的语气记录，不要过度分析
 - 更新是增量的，不覆盖已有内容，只追加或修正
 - 如果本次对话没有显著新特征，说明"本次无显著新特征"即可
 - 技能文件必须独立拆分，一个技能一个文件，不合并
-- 运行时数据（对局记录等）只存 `.opencode/docs/moheng/`，不同步到 `myskill` 仓库
+- 本 skill 只写入 `myskill/docs/moheng/`，`.opencode/docs/moheng/` 为运行时副本，用户手动同步
+- 运行时数据（对局记录等）只存 `.opencode/docs/moheng/games/`，不入仓库
 - 本技能为墨衡专属，skill 目录前缀必须为 `moheng-`
