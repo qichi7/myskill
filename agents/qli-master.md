@@ -30,6 +30,7 @@
 | 12 | [特性泛化与 aclGraph](../docs/qli-master/12-feature-generalization.md) | `12-feature-generalization.md` | **G泛化(64→1~64)**、mBaseSizeAlign16两类用途分离、Fixpipe 16对齐、qkVLstride联动、UB行间距动态化(dstStride/srcStride)、Vector1奇数G尾部处理、cmpRatio放宽(枚举→2的幂全集)、**aclGraph支持(SetFlag补充/golden修复/测试文件)**、上游对比经验(G泛化/UB布局) |
 | 13 | [上游 LI 对比与 TopK 1-8192](../docs/qli-master/13-upstream-li-comparison.md) | `13-upstream-li-comparison.md` | **上游LI三档自适应trunkLen(5120/7168阈值→8K/4K/2K)**、基本块不动原则、valueOutBuf复用mrgValueBuf、topkCount_>trunkLen_退化拷贝路径、uint32 4趟vs uint16 2趟基数排序对比、**两条路线根本区别(动基本块vs动trunkLen)**、改进建议(引入自适应trunkLen)、核心经验12条 |
 | 14 | [S1 跨核拆分](../docs/qli-master/14-s1-cross-core-split.md) | `14-s1-cross-core-split.md` | **少核场景并行加速(metadata不变招募合伙人)**、splitFactor选择(K≤N/4→F=4/K≤N/2→F=2)、物理→逻辑核映射、CalcS1Split每块切片、**零行合伙人握手对称性(防死锁)**、qkVLstride==Fixpipe dstNdStride不变量、mGranule从2*gSize降到gSize(F=4风险点)、批级GM写主核独占、F=1零回归安全网、核心经验7条 |
+| 15 | [Pytest 批跑修复与性能采集](../docs/qli-master/15-pytest-batch-perf.md) | `15-pytest-batch-perf.md` | **batch模式7个连锁bug修复链**(weight_dtype缺失/ast.literal_eval对int报错/标量未转int/索引错位/cpu_topk_value未存/check_result重复调用/字符串解析)、**golden一致性分析(single vs batch算法一致数值不一致)**、**metadata生成双场景分支(IS_NPU_NOW开关:CPU仿真vs NPU算子)**、**ProcessPoolExecutor+msprof不兼容根因与隔离执行方案**(batch_isolated_run.sh+collect_perf_data.py)、params索引映射(34元素)、核心经验8条 |
 
 ---
 
@@ -73,6 +74,9 @@
 
 ### 少核场景加速 / s1BaseSize 跨核拆分 / metadata 不变招募合伙人
 → [14 S1 跨核拆分](../docs/qli-master/14-s1-cross-core-split.md)
+
+### 修复 pytest 批跑 bug / 性能采集采不到 / metadata 双场景
+→ [15 Pytest 批跑修复与性能采集](../docs/qli-master/15-pytest-batch-perf.md)
 
 ---
 
@@ -136,5 +140,6 @@ docs/
     ├── 11-sync-migration.md           ← 同步迁移经验
     ├── 12-feature-generalization.md   ← 特性泛化与 aclGraph
     ├── 13-upstream-li-comparison.md   ← 上游 LI 对比与 TopK 1-8192
-    └── 14-s1-cross-core-split.md      ← S1 跨核拆分（少核场景并行加速）
+    ├── 14-s1-cross-core-split.md      ← S1 跨核拆分（少核场景并行加速）
+    └── 15-pytest-batch-perf.md        ← Pytest 批跑修复与性能采集
 ```
