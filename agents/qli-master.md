@@ -3,6 +3,13 @@
 > Quantized Lightning Indexer 算子完整知识库入口。
 > 各模块详细内容已拆分至 `../docs/qli-master/` 目录，按需索引。
 
+## Agent 权限
+
+本 agent 可读取相对于本文件（`agents/qli-master.md`）路径 `../docs/qli-master/` 下的全部文档：
+- 即绝对路径 `/Users/qichi/work/myskill/docs/qli-master/*.md`（01 ~ 14 各模块）。
+- 当用户问题涉及 QLI/QLI V2 算子的任一主题时，agent **应主动按下方"模块索引"或"快速导航"定位对应模块文件，并使用 Read 工具加载其完整内容后再作答**，而非仅凭索引摘要回答。
+- 文档内容为权威知识源；如文档与索引摘要冲突，以文档正文为准。
+
 ---
 
 ## 模块索引
@@ -22,6 +29,7 @@
 | 11 | [同步迁移经验](../docs/qli-master/11-sync-migration.md) | `11-sync-migration.md` | 上游仓库同步策略、提交分析与跳过决策、MXFP8代码保护、编译验证流程、审查报告处理、命名空间归属检查、经验教训总结 |
 | 12 | [特性泛化与 aclGraph](../docs/qli-master/12-feature-generalization.md) | `12-feature-generalization.md` | **G泛化(64→1~64)**、mBaseSizeAlign16两类用途分离、Fixpipe 16对齐、qkVLstride联动、UB行间距动态化(dstStride/srcStride)、Vector1奇数G尾部处理、cmpRatio放宽(枚举→2的幂全集)、**aclGraph支持(SetFlag补充/golden修复/测试文件)**、上游对比经验(G泛化/UB布局) |
 | 13 | [上游 LI 对比与 TopK 1-8192](../docs/qli-master/13-upstream-li-comparison.md) | `13-upstream-li-comparison.md` | **上游LI三档自适应trunkLen(5120/7168阈值→8K/4K/2K)**、基本块不动原则、valueOutBuf复用mrgValueBuf、topkCount_>trunkLen_退化拷贝路径、uint32 4趟vs uint16 2趟基数排序对比、**两条路线根本区别(动基本块vs动trunkLen)**、改进建议(引入自适应trunkLen)、核心经验12条 |
+| 14 | [S1 跨核拆分](../docs/qli-master/14-s1-cross-core-split.md) | `14-s1-cross-core-split.md` | **少核场景并行加速(metadata不变招募合伙人)**、splitFactor选择(K≤N/4→F=4/K≤N/2→F=2)、物理→逻辑核映射、CalcS1Split每块切片、**零行合伙人握手对称性(防死锁)**、qkVLstride==Fixpipe dstNdStride不变量、mGranule从2*gSize降到gSize(F=4风险点)、批级GM写主核独占、F=1零回归安全网、核心经验7条 |
 
 ---
 
@@ -62,6 +70,9 @@
 
 ### 对比上游 LI / 理解 TopK 1-8192 设计差异
 → [13 上游 LI 对比与 TopK 1-8192](../docs/qli-master/13-upstream-li-comparison.md)
+
+### 少核场景加速 / s1BaseSize 跨核拆分 / metadata 不变招募合伙人
+→ [14 S1 跨核拆分](../docs/qli-master/14-s1-cross-core-split.md)
 
 ---
 
@@ -124,5 +135,6 @@ docs/
     ├── 10-sync-pitfalls.md            ← 同步陷阱与修复经验
     ├── 11-sync-migration.md           ← 同步迁移经验
     ├── 12-feature-generalization.md   ← 特性泛化与 aclGraph
-    └── 13-upstream-li-comparison.md   ← 上游 LI 对比与 TopK 1-8192
+    ├── 13-upstream-li-comparison.md   ← 上游 LI 对比与 TopK 1-8192
+    └── 14-s1-cross-core-split.md      ← S1 跨核拆分（少核场景并行加速）
 ```
